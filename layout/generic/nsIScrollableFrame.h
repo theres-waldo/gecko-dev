@@ -279,6 +279,10 @@ public:
                         nsIScrollbarMediator::ScrollSnapMode aSnap
                           = nsIScrollbarMediator::DISABLE_SNAP) = 0;
 
+  virtual void ScrollByCSSPixels(const CSSIntPoint& aDelta,
+                                 nsIScrollableFrame::ScrollMode aMode
+                                   = nsIScrollableFrame::INSTANT) = 0;
+
   /**
    * Perform scroll snapping, possibly resulting in a smooth scroll to
    * maintain the scroll snap position constraints.  Velocity sampled from

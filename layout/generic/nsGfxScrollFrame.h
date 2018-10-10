@@ -270,6 +270,9 @@ public:
                 nsIScrollableFrame::ScrollMomentum aMomentum = nsIScrollableFrame::NOT_MOMENTUM,
                 nsIScrollbarMediator::ScrollSnapMode aSnap
                   = nsIScrollbarMediator::DISABLE_SNAP);
+  void ScrollByCSSPixels(const CSSIntPoint& aDelta,
+                         nsIScrollableFrame::ScrollMode aMode
+                           = nsIScrollableFrame::INSTANT);
   /**
    * @note This method might destroy the frame, pres shell and other objects.
    */
@@ -908,6 +911,11 @@ public:
                         override {
     mHelper.ScrollBy(aDelta, aUnit, aMode, aOverflow, aOrigin, aMomentum, aSnap);
   }
+  virtual void ScrollByCSSPixels(const CSSIntPoint& aDelta,
+                                 nsIScrollableFrame::ScrollMode aMode
+                                   = nsIScrollableFrame::INSTANT) override {
+    mHelper.ScrollByCSSPixels(aDelta, aMode);
+  }
   virtual void ScrollSnap() override {
     mHelper.ScrollSnap();
   }
@@ -1358,6 +1366,11 @@ public:
                           = nsIScrollbarMediator::DISABLE_SNAP)
                         override {
     mHelper.ScrollBy(aDelta, aUnit, aMode, aOverflow, aOrigin, aMomentum, aSnap);
+  }
+  virtual void ScrollByCSSPixels(const CSSIntPoint& aDelta,
+                                 nsIScrollableFrame::ScrollMode aMode
+                                   = nsIScrollableFrame::INSTANT) override {
+    mHelper.ScrollByCSSPixels(aDelta, aMode);
   }
   virtual void ScrollSnap() override {
     mHelper.ScrollSnap();

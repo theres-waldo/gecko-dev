@@ -4313,6 +4313,29 @@ ScrollFrameHelper::ScrollBy(nsIntPoint aDelta,
 }
 
 void
+ScrollFrameHelper::ScrollByCSSPixels(const CSSIntPoint& aDelta,
+                                     nsIScrollableFrame::ScrollMode aMode)
+{
+  nsPoint current = GetScrollPosition();
+  nsPoint pt = current + CSSPoint::ToAppUnits(aDelta);
+  nscoord halfPixel = nsPresContext::CSSPixelsToAppUnits(0.5f);
+  nsRect range(pt.x - halfPixel, pt.y - halfPixel, 2*halfPixel - 1, 2*halfPixel - 1);
+  if (aDelta.x == 0.0f) {
+    pt.x = current.x;
+    range.x = pt.x;
+    range.width = 0;
+  }
+  if (aDelta.y == 0.0f) {
+    pt.y = current.y;
+    range.y = pt.y;
+    range.height = 0;
+  }
+  ScrollToWithOrigin(pt, aMode, nsGkAtoms::other, &range,
+                     nsIScrollbarMediator::DISABLE_SNAP);
+  // 'this' might be destroyed here
+}
+
+void
 ScrollFrameHelper::ScrollSnap(nsIScrollableFrame::ScrollMode aMode)
 {
   float flingSensitivity = gfxPrefs::ScrollSnapPredictionSensitivity();
