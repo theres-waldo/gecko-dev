@@ -43,6 +43,7 @@ EXPORTS += [
     'opengl/OGLShaderProgram.h',
     'protobuf/LayerScopePacket.pb.h',
     'ReadbackLayer.h',
+    'RepaintRequest.h',
     'TiledLayerBuffer.h',
 ]
 

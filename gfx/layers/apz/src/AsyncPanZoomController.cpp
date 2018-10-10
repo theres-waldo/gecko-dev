@@ -3613,8 +3613,7 @@ void AsyncPanZoomController::RequestContentRepaint(bool aUserAction) {
   Metrics().SetDisplayPortMargins(CalculatePendingDisplayPort(Metrics(), velocity));
   Metrics().SetUseDisplayPortMargins(true);
   Metrics().SetPaintRequestTime(TimeStamp::Now());
-  Metrics().SetRepaintDrivenByUserAction(aUserAction);
-  RequestContentRepaint(Metrics(), velocity);
+  RequestContentRepaint(Metrics(), velocity, aUserAction);
 }
 
 /*static*/ CSSRect
@@ -3630,7 +3629,8 @@ GetDisplayPortRect(const FrameMetrics& aFrameMetrics)
 
 void
 AsyncPanZoomController::RequestContentRepaint(const FrameMetrics& aFrameMetrics,
-                                              const ParentLayerPoint& aVelocity)
+                                              const ParentLayerPoint& aVelocity,
+                                              bool aUserAction)
 {
   RefPtr<GeckoContentController> controller = GetGeckoContentController();
   if (!controller) {
@@ -3638,31 +3638,36 @@ AsyncPanZoomController::RequestContentRepaint(const FrameMetrics& aFrameMetrics,
   }
   MOZ_ASSERT(controller->IsRepaintThread());
 
+  RepaintRequest::ScrollOffsetUpdateType updateType = aUserAction
+    ? RepaintRequest::ScrollOffsetUpdateType::eUserAction
+    : RepaintRequest::ScrollOffsetUpdateType::eNone;
+  RepaintRequest request(aFrameMetrics, updateType);
+
   // If we're trying to paint what we already think is painted, discard this
   // request since it's a pointless paint.
   ScreenMargin marginDelta = (mLastPaintRequestMetrics.GetDisplayPortMargins()
-                           - aFrameMetrics.GetDisplayPortMargins());
+                           - request.GetDisplayPortMargins());
   if (fabsf(marginDelta.left) < EPSILON &&
       fabsf(marginDelta.top) < EPSILON &&
       fabsf(marginDelta.right) < EPSILON &&
       fabsf(marginDelta.bottom) < EPSILON &&
       fabsf(mLastPaintRequestMetrics.GetScrollOffset().x -
-            aFrameMetrics.GetScrollOffset().x) < EPSILON &&
+            request.GetScrollOffset().x) < EPSILON &&
       fabsf(mLastPaintRequestMetrics.GetScrollOffset().y -
-            aFrameMetrics.GetScrollOffset().y) < EPSILON &&
-      aFrameMetrics.GetPresShellResolution() == mLastPaintRequestMetrics.GetPresShellResolution() &&
-      aFrameMetrics.GetZoom() == mLastPaintRequestMetrics.GetZoom() &&
-      fabsf(aFrameMetrics.GetViewport().Width() -
+            request.GetScrollOffset().y) < EPSILON &&
+      request.GetPresShellResolution() == mLastPaintRequestMetrics.GetPresShellResolution() &&
+      request.GetZoom() == mLastPaintRequestMetrics.GetZoom() &&
+      fabsf(request.GetViewport().Width() -
             mLastPaintRequestMetrics.GetViewport().Width()) < EPSILON &&
-      fabsf(aFrameMetrics.GetViewport().Height() -
+      fabsf(request.GetViewport().Height() -
             mLastPaintRequestMetrics.GetViewport().Height()) < EPSILON &&
-      fabsf(aFrameMetrics.GetViewport().X() -
+      fabsf(request.GetViewport().X() -
             mLastPaintRequestMetrics.GetViewport().X()) < EPSILON &&
-      fabsf(aFrameMetrics.GetViewport().Y() -
+      fabsf(request.GetViewport().Y() -
             mLastPaintRequestMetrics.GetViewport().Y()) < EPSILON &&
-      aFrameMetrics.GetScrollGeneration() ==
+      request.GetScrollGeneration() ==
             mLastPaintRequestMetrics.GetScrollGeneration() &&
-      aFrameMetrics.GetScrollUpdateType() ==
+      request.GetScrollUpdateType() ==
             mLastPaintRequestMetrics.GetScrollUpdateType()) {
     return;
   }
@@ -3680,11 +3685,9 @@ AsyncPanZoomController::RequestContentRepaint(const FrameMetrics& aFrameMetrics,
     }
   }
 
-  MOZ_ASSERT(aFrameMetrics.GetScrollUpdateType() == FrameMetrics::eNone ||
-             aFrameMetrics.GetScrollUpdateType() == FrameMetrics::eUserAction);
-  controller->RequestContentRepaint(aFrameMetrics);
+  controller->RequestContentRepaint(request);
   mExpectedGeckoMetrics = aFrameMetrics;
-  mLastPaintRequestMetrics = aFrameMetrics;
+  mLastPaintRequestMetrics = request;
 }
 
 bool AsyncPanZoomController::UpdateAnimation(const TimeStamp& aSampleTime,
@@ -4352,7 +4355,9 @@ void AsyncPanZoomController::NotifyLayersUpdated(const ScrollMetadata& aScrollMe
       // becomes incorrect for the purposes of calculating the LD transform. To
       // correct this we need to update mExpectedGeckoMetrics to be the
       // last thing we know was painted by Gecko.
-      CopyScrollInfoFrom(aLayerMetrics);
+      Metrics().CopyScrollInfoFrom(aLayerMetrics);
+      Metrics().RecalculateViewportOffset();
+
       mCompositedLayoutViewport = Metrics().GetViewport();
       mCompositedScrollOffset = Metrics().GetScrollOffset();
       mExpectedGeckoMetrics = aLayerMetrics;
@@ -4579,25 +4584,25 @@ void AsyncPanZoomController::ZoomToRect(CSSRect aRect, const uint32_t aFlags) {
       CalculatePendingDisplayPort(endZoomToMetrics, velocity));
     endZoomToMetrics.SetUseDisplayPortMargins(true);
     endZoomToMetrics.SetPaintRequestTime(TimeStamp::Now());
-    endZoomToMetrics.SetRepaintDrivenByUserAction(true);
 
     RefPtr<GeckoContentController> controller = GetGeckoContentController();
     if (!controller) {
       return;
     }
     if (controller->IsRepaintThread()) {
-      RequestContentRepaint(endZoomToMetrics, velocity);
+      RequestContentRepaint(endZoomToMetrics, velocity, true);
     } else {
       // use a local var to resolve the function overload
-      auto func = static_cast<void (AsyncPanZoomController::*)(const FrameMetrics&, const ParentLayerPoint&)>
+      auto func = static_cast<void (AsyncPanZoomController::*)(const FrameMetrics&, const ParentLayerPoint&, bool)>
           (&AsyncPanZoomController::RequestContentRepaint);
       controller->DispatchToRepaintThread(
-        NewRunnableMethod<FrameMetrics, ParentLayerPoint>(
+        NewRunnableMethod<FrameMetrics, ParentLayerPoint, bool>(
           "layers::AsyncPanZoomController::ZoomToRect",
           this,
           func,
           endZoomToMetrics,
-          velocity));
+          velocity,
+          true));
     }
   }
 }

@@ -9619,7 +9619,7 @@ GetPresShell(const nsIContent* aContent)
   return result.forget();
 }
 
-static void UpdateDisplayPortMarginsForPendingMetrics(FrameMetrics& aMetrics) {
+static void UpdateDisplayPortMarginsForPendingMetrics(const RepaintRequest& aMetrics) {
   nsIContent* content = nsLayoutUtils::FindContentFor(aMetrics.GetScrollId());
   if (!content) {
     return;
@@ -9660,10 +9660,10 @@ static void UpdateDisplayPortMarginsForPendingMetrics(FrameMetrics& aMetrics) {
   }
 
   CSSPoint frameScrollOffset = CSSPoint::FromAppUnits(frame->GetScrollPosition());
-  APZCCallbackHelper::AdjustDisplayPortForScrollDelta(aMetrics, frameScrollOffset);
+  ScreenMargin displayPortMargins = APZCCallbackHelper::AdjustDisplayPortForScrollDelta(aMetrics, frameScrollOffset);
 
   nsLayoutUtils::SetDisplayPortMargins(content, shell,
-                                       aMetrics.GetDisplayPortMargins(), 0);
+                                       displayPortMargins, 0);
 }
 
 /* static */ void
@@ -9676,13 +9676,13 @@ nsLayoutUtils::UpdateDisplayPortMarginsFromPendingMessages()
       [](const IPC::Message& aMsg) -> bool {
         if (aMsg.type() == mozilla::layers::PAPZ::Msg_RequestContentRepaint__ID) {
           PickleIterator iter(aMsg);
-          FrameMetrics frame;
-          if (!IPC::ReadParam(&aMsg, &iter, &frame)) {
+          RepaintRequest request;
+          if (!IPC::ReadParam(&aMsg, &iter, &request)) {
             MOZ_ASSERT(false);
             return true;
           }
 
-          UpdateDisplayPortMarginsForPendingMetrics(frame);
+          UpdateDisplayPortMarginsForPendingMetrics(request);
         }
         return true;
       });

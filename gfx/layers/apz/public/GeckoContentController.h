@@ -8,6 +8,7 @@
 #define mozilla_layers_GeckoContentController_h
 
 #include "FrameMetrics.h"               // for FrameMetrics, etc
+#include "RepaintRequest.h"             // for RepaintRequest, etc
 #include "InputData.h"                  // for PinchGestureInput
 #include "Units.h"                      // for CSSPoint, CSSRect, etc
 #include "mozilla/Assertions.h"         // for MOZ_ASSERT_HELPER2
@@ -27,7 +28,7 @@ public:
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(GeckoContentController)
 
   /**
-   * Requests a paint of the given FrameMetrics |aFrameMetrics| from Gecko.
+   * Requests a paint of the given RepaintRequest |aRequest| from Gecko.
    * Implementations per-platform are responsible for actually handling this.
    *
    * This method must always be called on the repaint thread, which depends
@@ -35,7 +36,7 @@ public:
    * Gecko main thread, while for RemoteContentController it is the compositor
    * thread where it can send IPDL messages.
    */
-  virtual void RequestContentRepaint(const FrameMetrics& aFrameMetrics) = 0;
+  virtual void RequestContentRepaint(const RepaintRequest& aRequest) = 0;
 
   /**
    * Different types of tap-related events that can be sent in

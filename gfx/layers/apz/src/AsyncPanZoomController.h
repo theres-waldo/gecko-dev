@@ -27,6 +27,7 @@
 #include "nsRegion.h"
 #include "nsTArray.h"
 #include "PotentialCheckerboardDurationTracker.h"
+#include "RepaintRequest.h"
 
 #include "base/message_loop.h"
 
@@ -816,7 +817,8 @@ protected:
    * called on the main thread.
    */
   void RequestContentRepaint(const FrameMetrics& aFrameMetrics,
-                             const ParentLayerPoint& aVelocity);
+                             const ParentLayerPoint& aVelocity,
+                             bool aUserAction);
 
   /**
    * Gets the current frame metrics. This is *not* the Gecko copy stored in the
@@ -933,8 +935,8 @@ private:
   // sending messages back to Gecko.
   ScrollMetadata mLastContentPaintMetadata;
   FrameMetrics& mLastContentPaintMetrics;  // for convenience, refers to mLastContentPaintMetadata.mMetrics
-  // The last metrics used for a content repaint request.
-  FrameMetrics mLastPaintRequestMetrics;
+  // The last content repaint request.
+  RepaintRequest mLastPaintRequestMetrics;
   // The metrics that we expect content to have. This is updated when we
   // request a content repaint, and when we receive a shadow layers update.
   // This allows us to transform events into Gecko's coordinate space.
