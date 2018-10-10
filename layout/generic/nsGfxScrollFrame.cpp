@@ -2050,7 +2050,7 @@ ScrollFrameHelper::AsyncScroll::InitSmoothScroll(TimeStamp aTime,
                                                  const nsRect& aRange,
                                                  const nsSize& aCurrentVelocity)
 {
-  if (!aOrigin || aOrigin == nsGkAtoms::restore) {
+  if (!aOrigin || aOrigin == nsGkAtoms::restore || aOrigin == nsGkAtoms::relative) {
     // We don't have special prefs for "restore", just treat it as "other".
     // "restore" scrolls are (for now) always instant anyway so unless something
     // changes we should never have aOrigin == nsGkAtoms::restore here.
@@ -2132,6 +2132,7 @@ ScrollFrameHelper::ScrollFrameHelper(nsContainerFrame* aOuter,
   , mDestination(0, 0)
   , mRestorePos(-1, -1)
   , mLastPos(-1, -1)
+  , mApzScrollPos(0, 0)
   , mScrollPosForLayerPixelAlignment(-1, -1)
   , mLastUpdateFramesPos(-1, -1)
   , mHadDisplayPortAtLastFrameUpdate(false)
@@ -2922,6 +2923,15 @@ ScrollFrameHelper::ScrollToImpl(nsPoint aPt, const nsRect& aRange, nsAtom* aOrig
   // Update frame position for scrolling
   mScrolledFrame->SetPosition(mScrollPort.TopLeft() - pt);
 
+  // If this scroll is |relative|, but we've already had a user scroll that
+  // was not relative, promote this origin to |other|
+  if (aOrigin == nsGkAtoms::relative &&
+      (mLastScrollOrigin &&
+       mLastScrollOrigin != nsGkAtoms::relative &&
+       mLastScrollOrigin != nsGkAtoms::apz)) {
+    aOrigin = nsGkAtoms::other;
+  }
+
   // If |mLastScrollOrigin| is already set to something that can clobber APZ's
   // scroll offset, then we don't want to change it to something that can't.
   // If we allowed this, then we could end up in a state where APZ ignores
@@ -2932,12 +2942,16 @@ ScrollFrameHelper::ScrollToImpl(nsPoint aPt, const nsRect& aRange, nsAtom* aOrig
     !nsLayoutUtils::CanScrollOriginClobberApz(aOrigin);
   bool allowScrollOriginChange = mAllowScrollOriginDowngrade ||
     !isScrollOriginDowngrade;
+
   if (allowScrollOriginChange) {
     mLastScrollOrigin = aOrigin;
     mAllowScrollOriginDowngrade = false;
   }
   mLastSmoothScrollOrigin = nullptr;
   mScrollGeneration = ++sScrollGenerationCounter;
+  if (mLastScrollOrigin == nsGkAtoms::apz) {
+    mApzScrollPos = GetScrollPosition();
+  }
 
   // If the new scroll offset is going to clobber APZ's scroll offset, for
   // the RCD-RSF this will have the effect of resetting the visual viewport
@@ -3005,7 +3019,12 @@ ScrollFrameHelper::ScrollToImpl(nsPoint aPt, const nsRect& aRange, nsAtom* aOrig
             // instead of a full transaction. This empty transaction might still get
             // squashed into a full transaction if something happens to trigger one.
             success = manager->SetPendingScrollUpdateForNextTransaction(id,
-                { mScrollGeneration, CSSPoint::FromAppUnits(GetScrollPosition()) });
+                {
+                  mScrollGeneration,
+                  CSSPoint::FromAppUnits(GetScrollPosition()),
+                  CSSPoint::FromAppUnits(GetApzScrollPosition()),
+                  mLastScrollOrigin == nsGkAtoms::relative
+                });
             if (success) {
               schedulePaint = false;
               mOuter->SchedulePaint(nsIFrame::PAINT_COMPOSITE_ONLY);
@@ -4330,7 +4349,7 @@ ScrollFrameHelper::ScrollByCSSPixels(const CSSIntPoint& aDelta,
     range.y = pt.y;
     range.height = 0;
   }
-  ScrollToWithOrigin(pt, aMode, nsGkAtoms::other, &range,
+  ScrollToWithOrigin(pt, aMode, nsGkAtoms::relative, &range,
                      nsIScrollbarMediator::DISABLE_SNAP);
   // 'this' might be destroyed here
 }

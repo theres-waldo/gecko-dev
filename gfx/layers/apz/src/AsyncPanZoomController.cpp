@@ -491,6 +491,11 @@ typedef PlatformSpecificStateBase PlatformSpecificState;  // no extra state, jus
  * A negative number prevents repaint requests during a scale.\n
  * Units: ms
  *
+ * \li\b apz.relative-update
+ * Whether to enable relative scroll offset updates or not. Relative scroll
+ * offset updates allow APZ and the main thread to simultaneously update
+ * the scroll offset and merge the result.
+ *
  */
 
 /**
@@ -3370,11 +3375,6 @@ void AsyncPanZoomController::ScrollByAndClamp(const CSSPoint& aOffset) {
   ClampAndSetScrollOffset(Metrics().GetScrollOffset() + aOffset);
 }
 
-void AsyncPanZoomController::CopyScrollInfoFrom(const FrameMetrics& aFrameMetrics) {
-  Metrics().CopyScrollInfoFrom(aFrameMetrics);
-  Metrics().RecalculateViewportOffset();
-}
-
 void AsyncPanZoomController::ScaleWithFocus(float aScale,
                                             const CSSPoint& aFocus) {
   Metrics().ZoomBy(aScale);
@@ -4344,10 +4344,6 @@ void AsyncPanZoomController::NotifyLayersUpdated(const ScrollMetadata& aScrollMe
     mScrollMetadata.SetOverscrollBehavior(aScrollMetadata.GetOverscrollBehavior());
 
     if (scrollOffsetUpdated) {
-      APZC_LOG("%p updating scroll offset from %s to %s\n", this,
-        ToString(Metrics().GetScrollOffset()).c_str(),
-        ToString(aLayerMetrics.GetScrollOffset()).c_str());
-
       // Send an acknowledgement with the new scroll generation so that any
       // repaint requests later in this function go through.
       // Because of the scroll generation update, any inflight paint requests are
@@ -4355,7 +4351,17 @@ void AsyncPanZoomController::NotifyLayersUpdated(const ScrollMetadata& aScrollMe
       // becomes incorrect for the purposes of calculating the LD transform. To
       // correct this we need to update mExpectedGeckoMetrics to be the
       // last thing we know was painted by Gecko.
-      Metrics().CopyScrollInfoFrom(aLayerMetrics);
+      if (gfxPrefs::APZRelativeUpdate() && aLayerMetrics.IsRelative()) {
+        APZC_LOG("%p relative updating scroll offset from %s by %s\n", this,
+          ToString(Metrics().GetScrollOffset()).c_str(),
+          ToString(aLayerMetrics.GetScrollOffset() - aLayerMetrics.GetBaseScrollOffset()).c_str());
+        Metrics().ApplyRelativeScrollUpdateFrom(aLayerMetrics);
+      } else {
+        APZC_LOG("%p updating scroll offset from %s to %s\n", this,
+          ToString(Metrics().GetScrollOffset()).c_str(),
+          ToString(aLayerMetrics.GetScrollOffset()).c_str());
+        Metrics().ApplyScrollUpdateFrom(aLayerMetrics);
+      }
       Metrics().RecalculateViewportOffset();
 
       mCompositedLayoutViewport = Metrics().GetViewport();
@@ -4398,7 +4404,11 @@ void AsyncPanZoomController::NotifyLayersUpdated(const ScrollMetadata& aScrollMe
 
     // See comment on the similar code in the |if (scrollOffsetUpdated)| block
     // above.
-    Metrics().CopySmoothScrollInfoFrom(aLayerMetrics);
+    if (gfxPrefs::APZRelativeUpdate() && aLayerMetrics.IsRelative()) {
+      Metrics().ApplyRelativeSmoothScrollUpdateFrom(aLayerMetrics);
+    } else {
+      Metrics().ApplySmoothScrollUpdateFrom(aLayerMetrics);
+    }
     needContentRepaint = true;
     mExpectedGeckoMetrics = aLayerMetrics;
 

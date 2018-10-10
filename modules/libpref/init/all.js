@@ -733,6 +733,7 @@ pref("apz.pinch_lock.scoll_lock_threshold", "0.03125");  // 1/32 inches
 pref("apz.pinch_lock.span_breakout_threshold", "0.03125");  // 1/32 inches
 pref("apz.pinch_lock.span_lock_threshold", "0.03125");  // 1/32 inches
 pref("apz.popups.enabled", false);
+pref("apz.relative-update", true);
 
 // Whether to print the APZC tree for debugging
 pref("apz.printtree", false);
